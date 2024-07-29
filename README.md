@@ -1,5 +1,7 @@
 # ScrollGame
+
 スクロールタイプのゲームを作成する予定です．
+
 =======
 # Getting Started with Create React App
 
