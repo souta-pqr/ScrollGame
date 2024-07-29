@@ -88,6 +88,8 @@ const Game: React.FC = () => {
   const [gameState, setGameState] = useState<'playing' | 'over' | 'won'>('playing');
   const [startTime, setStartTime] = useState(Date.now());
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [firstStart, setFirstStart] = useState(true);
   
   const lastCollisionTime = useRef(0);
 
@@ -104,6 +106,7 @@ const Game: React.FC = () => {
     setStartTime(Date.now());
     setElapsedTime(0);
     lastCollisionTime.current = 0;
+    setGameStarted(true); // ゲームを即座に再開
   }, []);
 
   const handleCollision = useCallback(() => {
@@ -138,7 +141,7 @@ const Game: React.FC = () => {
         setPlayerVelocity(prev => ({ ...prev, x: -5 }));
       } else if (e.key === ' ' && !isJumping) {
         setIsJumping(true);
-        setPlayerVelocity(prev => ({ ...prev, y: -15 }));
+        setPlayerVelocity(prev => ({ ...prev, y: -20 }));
       }
     };
 
@@ -158,11 +161,10 @@ const Game: React.FC = () => {
   }, [isJumping, gameState]);
 
   useEffect(() => {
+    if (gameState !== 'playing') return;
+
     const gravity = 0.8;
-
     const gameLoop = setInterval(() => {
-      if (gameState !== 'playing') return;
-
       setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
 
       setPlayerPosition(prev => {
@@ -243,6 +245,13 @@ const Game: React.FC = () => {
     return () => clearInterval(gameLoop);
   }, [lives, playerPosition, playerVelocity, obstacles, holes, handleCollision, gameState, startTime]);
 
+  const startGame = () => {
+    setGameStarted(true);
+    setFirstStart(false);
+    setStartTime(Date.now());
+    setGameState('playing');
+  };
+
   const progress = (playerPosition.x / (window.innerWidth - 50)) * 100;
 
   const formatTime = (seconds: number) => {
@@ -254,33 +263,45 @@ const Game: React.FC = () => {
   return (
     <GameContainer>
       <Background />
-      <ProgressBar style={{ width: `${progress}%` }} />
-      <Player position={playerPosition} isInvulnerable={isInvulnerable} />
-      {obstacles.map((obstacle, index) => (
-        <Obstacle 
-          key={index} 
-          position={{ x: obstacle.x, y: obstacle.y }}
-          width={obstacle.width}
-          height={obstacle.height}
-        />
-      ))}
-      {holes.map((hole, index) => (
-        <div key={index} style={{
-          position: 'absolute',
-          left: hole.x,
-          top: hole.y,
-          width: hole.width,
-          height: hole.height,
-          backgroundColor: 'black'
-        }} />
-      ))}
-      <Enemy />
-      <HUD>
-        <div>{Array(lives).fill(0).map((_, i) => <Heart key={i} color="red" fill="red" />)}</div>
-        <div><Star /> {score}</div>
-        <div><Clock /> {formatTime(elapsedTime)}</div>
-      </HUD>
+      {gameStarted && (
+        <>
+          <ProgressBar style={{ width: `${progress}%` }} />
+          <Player position={playerPosition} isInvulnerable={isInvulnerable} />
+          {obstacles.map((obstacle, index) => (
+            <Obstacle 
+              key={index} 
+              position={{ x: obstacle.x, y: obstacle.y }}
+              width={obstacle.width}
+              height={obstacle.height}
+            />
+          ))}
+          {holes.map((hole, index) => (
+            <div key={index} style={{
+              position: 'absolute',
+              left: hole.x,
+              top: hole.y,
+              width: hole.width,
+              height: hole.height,
+              backgroundColor: 'black'
+            }} />
+          ))}
+          <Enemy />
+          <HUD>
+            <div>{Array(lives).fill(0).map((_, i) => <Heart key={i} color="red" fill="red" />)}</div>
+            <div><Star /> {score}</div>
+            <div><Clock /> {formatTime(elapsedTime)}</div>
+          </HUD>
+        </>
+      )}
       {message && <MessageOverlay>{message}</MessageOverlay>}
+      {!gameStarted && firstStart && (
+        <MessageOverlay>
+          <div>Welcome to the Game!</div>
+          <div>Jump over the red obstacles to avoid losing points.</div>
+          <div>Use arrow keys to move and space to jump.</div>
+          <Button onClick={startGame}>Start Game</Button>
+        </MessageOverlay>
+      )}
       {(gameOver || gameWon) && (
         <MessageOverlay>
           <div>{gameOver ? 'Game Over!' : 'You Win!'}</div>
