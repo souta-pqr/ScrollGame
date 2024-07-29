@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import Player from './Player';
 import Enemy from './Enemy';
@@ -31,16 +31,18 @@ const Game: React.FC = () => {
   const [lives, setLives] = useState(3);
   const [gameOver, setGameOver] = useState(false);
   const [gameWon, setGameWon] = useState(false);
-  const [obstacles, setObstacles] = useState([
+  const [obstacles] = useState([
     { x: window.innerWidth * 0.3, y: window.innerHeight - 80, width: 30, height: 30 },
     { x: window.innerWidth * 0.6, y: window.innerHeight - 80, width: 30, height: 30 },
   ]);
-  const [holes, setHoles] = useState([
+  const [holes] = useState([
     { x: window.innerWidth * 0.45, y: window.innerHeight - 10, width: 100, height: 10 },
     { x: window.innerWidth * 0.75, y: window.innerHeight - 10, width: 100, height: 10 },
   ]);
   const [isJumping, setIsJumping] = useState(false);
   const [isInvulnerable, setIsInvulnerable] = useState(false);
+  
+  const lastCollisionTime = useRef(0);
 
   const resetGame = useCallback(() => {
     setPlayerPosition({ x: 50, y: window.innerHeight - 100 });
@@ -50,16 +52,19 @@ const Game: React.FC = () => {
     setGameWon(false);
     setIsJumping(false);
     setIsInvulnerable(false);
+    lastCollisionTime.current = 0;
   }, []);
 
   const handleCollision = useCallback(() => {
-    if (!isInvulnerable) {
-      setLives(prev => prev - 1);
+    const currentTime = Date.now();
+    if (!isInvulnerable && currentTime - lastCollisionTime.current > 1000) {
+      setLives(prev => Math.max(prev - 1, 0));
       setPlayerPosition({ x: 50, y: window.innerHeight - 100 });
       setPlayerVelocity({ x: 0, y: 0 });
       setIsJumping(false);
       setIsInvulnerable(true);
-      setTimeout(() => setIsInvulnerable(false), 1000); // 1秒間の無敵時間
+      lastCollisionTime.current = currentTime;
+      setTimeout(() => setIsInvulnerable(false), 1000);
     }
   }, [isInvulnerable]);
 
@@ -112,6 +117,7 @@ const Game: React.FC = () => {
         if (newX > window.innerWidth - 50) newX = window.innerWidth - 50;
 
         // Check obstacle collisions
+        let collision = false;
         for (let obstacle of obstacles) {
           if (
             newX < obstacle.x + obstacle.width &&
@@ -119,8 +125,8 @@ const Game: React.FC = () => {
             newY < obstacle.y + obstacle.height &&
             newY + 50 > obstacle.y
           ) {
-            handleCollision();
-            return prev; // Don't update position if collision occurred
+            collision = true;
+            break;
           }
         }
 
@@ -131,8 +137,8 @@ const Game: React.FC = () => {
             newX + 50 > hole.x &&
             newY + 50 >= hole.y
           ) {
-            handleCollision();
-            return prev; // Don't update position if collision occurred
+            collision = true;
+            break;
           }
         }
 
@@ -146,9 +152,13 @@ const Game: React.FC = () => {
             newY < enemyRect.bottom &&
             newY + 50 > enemyRect.top
           ) {
-            handleCollision();
-            return prev; // Don't update position if collision occurred
+            collision = true;
           }
+        }
+
+        if (collision) {
+          handleCollision();
+          return prev; // Don't update position if collision occurred
         }
 
         return { x: newX, y: newY };
@@ -166,25 +176,6 @@ const Game: React.FC = () => {
 
     return () => clearInterval(gameLoop);
   }, [lives, playerPosition, playerVelocity, obstacles, holes, handleCollision]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setObstacles([
-        { x: window.innerWidth * 0.3, y: window.innerHeight - 80, width: 30, height: 30 },
-        { x: window.innerWidth * 0.6, y: window.innerHeight - 80, width: 30, height: 30 },
-      ]);
-      setHoles([
-        { x: window.innerWidth * 0.45, y: window.innerHeight - 10, width: 100, height: 10 },
-        { x: window.innerWidth * 0.75, y: window.innerHeight - 10, width: 100, height: 10 },
-      ]);
-      setPlayerPosition(prev => ({ ...prev, y: window.innerHeight - 100 }));
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
 
   return (
     <GameContainer>
