@@ -28,7 +28,6 @@ const HUD = styled.div`
   color: white;
   font-size: 24px;
   animation: ${fadeIn} 0.5s ease-in;
-  z-index: 1000;
 `;
 
 const ProgressBar = styled.div`
@@ -38,7 +37,6 @@ const ProgressBar = styled.div`
   height: 5px;
   background-color: #4CAF50;
   transition: width 0.3s ease;
-  z-index: 1000;
 `;
 
 const MessageOverlay = styled.div`
@@ -53,7 +51,6 @@ const MessageOverlay = styled.div`
   text-align: center;
   font-size: 24px;
   animation: ${fadeIn} 0.5s ease-in;
-  z-index: 1000;
 `;
 
 const Button = styled.button`
@@ -68,71 +65,6 @@ const Button = styled.button`
   &:hover {
     background-color: #45a049;
   }
-`;
-
-const ParallaxLayer = styled.div<{ speed: number }>`
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: ${props => 10 - props.speed};
-  transition: transform 0.1s linear;
-`;
-
-const Grass = styled.div`
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 20px;
-  background-color: #4CAF50;
-`;
-
-const Flower = styled.div`
-  position: absolute;
-  bottom: 20px;
-  width: 20px;
-  height: 20px;
-  background-color: #FF69B4;
-  border-radius: 50%;
-  &::before {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    width: 2px;
-    height: 15px;
-    background-color: #228B22;
-    transform: translateX(-50%);
-  }
-`;
-
-const Tree = styled.div`
-  position: absolute;
-  bottom: 20px;
-  width: 40px;
-  height: 80px;
-  background-color: #8B4513;
-  &::before {
-    content: '';
-    position: absolute;
-    top: -40px;
-    left: -30px;
-    width: 100px;
-    height: 80px;
-    background-color: #228B22;
-    border-radius: 50%;
-  }
-`;
-
-const Rock = styled.div`
-  position: absolute;
-  bottom: 20px;
-  width: 40px;
-  height: 30px;
-  background-color: #808080;
-  border-radius: 50% 50% 20% 20%;
 `;
 
 const Game: React.FC = () => {
@@ -161,24 +93,6 @@ const Game: React.FC = () => {
   
   const lastCollisionTime = useRef(0);
 
-  // 新しい装飾要素の状態
-  const [flowers] = useState([
-    { x: window.innerWidth * 0.1, y: 0 },
-    { x: window.innerWidth * 0.4, y: 0 },
-    { x: window.innerWidth * 0.7, y: 0 },
-    { x: window.innerWidth * 0.9, y: 0 },
-  ]);
-  const [trees] = useState([
-    { x: window.innerWidth * 0.2, y: 0 },
-    { x: window.innerWidth * 0.5, y: 0 },
-    { x: window.innerWidth * 0.8, y: 0 },
-  ]);
-  const [rocks] = useState([
-    { x: window.innerWidth * 0.15, y: 0 },
-    { x: window.innerWidth * 0.55, y: 0 },
-    { x: window.innerWidth * 0.85, y: 0 },
-  ]);
-
   const resetGame = useCallback(() => {
     setPlayerPosition({ x: 50, y: window.innerHeight - 100 });
     setPlayerVelocity({ x: 0, y: 0 });
@@ -192,7 +106,7 @@ const Game: React.FC = () => {
     setStartTime(Date.now());
     setElapsedTime(0);
     lastCollisionTime.current = 0;
-    setGameStarted(true);
+    setGameStarted(true); // ゲームを即座に再開
   }, []);
 
   const handleCollision = useCallback(() => {
@@ -206,7 +120,7 @@ const Game: React.FC = () => {
         }
         return newLives;
       });
-      setScore(prev => Math.max(prev - 50, 0));
+      setScore(prev => Math.max(prev - 50, 0)); // スコアを50減少させる（最小0）
       setPlayerPosition({ x: 50, y: window.innerHeight - 100 });
       setPlayerVelocity({ x: 0, y: 0 });
       setIsJumping(false);
@@ -257,14 +171,17 @@ const Game: React.FC = () => {
         let newX = prev.x + playerVelocity.x;
         let newY = prev.y + playerVelocity.y;
 
+        // Apply gravity
         setPlayerVelocity(prevVel => ({ ...prevVel, y: prevVel.y + gravity }));
 
+        // Ground collision
         if (newY > window.innerHeight - 100) {
           newY = window.innerHeight - 100;
           setPlayerVelocity(prevVel => ({ ...prevVel, y: 0 }));
           setIsJumping(false);
         }
 
+        // Wall collisions
         if (newX < 0) newX = 0;
         if (newX > window.innerWidth - 50) {
           newX = window.innerWidth - 50;
@@ -272,6 +189,7 @@ const Game: React.FC = () => {
           setGameWon(true);
         }
 
+        // Check obstacle collisions
         let collision = false;
         for (let obstacle of obstacles) {
           if (
@@ -285,6 +203,7 @@ const Game: React.FC = () => {
           }
         }
 
+        // Check hole collisions
         for (let hole of holes) {
           if (
             newX < hole.x + hole.width &&
@@ -296,6 +215,7 @@ const Game: React.FC = () => {
           }
         }
 
+        // Check enemy collision
         const enemy = document.querySelector('.enemy') as HTMLElement;
         if (enemy) {
           const enemyRect = enemy.getBoundingClientRect();
@@ -311,15 +231,16 @@ const Game: React.FC = () => {
 
         if (collision) {
           handleCollision();
-          return prev;
+          return prev; // Don't update position if collision occurred
         }
 
+        // Update score
         setScore(prev => prev + 1);
 
         return { x: newX, y: newY };
       });
 
-    }, 1000 / 60);
+    }, 1000 / 60); // 60 FPS
 
     return () => clearInterval(gameLoop);
   }, [lives, playerPosition, playerVelocity, obstacles, holes, handleCollision, gameState, startTime]);
@@ -344,22 +265,6 @@ const Game: React.FC = () => {
       <Background />
       {gameStarted && (
         <>
-          <ParallaxLayer speed={1} style={{ transform: `translateX(-${playerPosition.x * 0.1}px)` }}>
-            {trees.map((tree, index) => (
-              <Tree key={index} style={{ left: tree.x }} />
-            ))}
-          </ParallaxLayer>
-          <ParallaxLayer speed={2} style={{ transform: `translateX(-${playerPosition.x * 0.2}px)` }}>
-            {rocks.map((rock, index) => (
-              <Rock key={index} style={{ left: rock.x }} />
-            ))}
-          </ParallaxLayer>
-          <ParallaxLayer speed={3} style={{ transform: `translateX(-${playerPosition.x * 0.3}px)` }}>
-            {flowers.map((flower, index) => (
-              <Flower key={index} style={{ left: flower.x }} />
-            ))}
-          </ParallaxLayer>
-          <Grass />
           <ProgressBar style={{ width: `${progress}%` }} />
           <Player position={playerPosition} isInvulnerable={isInvulnerable} />
           {obstacles.map((obstacle, index) => (
@@ -386,7 +291,7 @@ const Game: React.FC = () => {
             <div><Star /> {score}</div>
             <div><Clock /> {formatTime(elapsedTime)}</div>
           </HUD>
-          </>
+        </>
       )}
       {message && <MessageOverlay>{message}</MessageOverlay>}
       {!gameStarted && firstStart && (
