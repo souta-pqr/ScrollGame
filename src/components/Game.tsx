@@ -4,7 +4,7 @@ import Player from './Player';
 import Enemy from './Enemy';
 import Background from './Background';
 import Obstacle from './Obstacle';
-import { Heart, Star } from 'lucide-react';
+import { Heart, Star, Clock } from 'lucide-react';
 
 const GameContainer = styled.div`
   width: 100vw;
@@ -86,6 +86,8 @@ const Game: React.FC = () => {
   const [isInvulnerable, setIsInvulnerable] = useState(false);
   const [message, setMessage] = useState('');
   const [gameState, setGameState] = useState<'playing' | 'over' | 'won'>('playing');
+  const [startTime, setStartTime] = useState(Date.now());
+  const [elapsedTime, setElapsedTime] = useState(0);
   
   const lastCollisionTime = useRef(0);
 
@@ -99,6 +101,8 @@ const Game: React.FC = () => {
     setIsJumping(false);
     setIsInvulnerable(false);
     setGameState('playing');
+    setStartTime(Date.now());
+    setElapsedTime(0);
     lastCollisionTime.current = 0;
   }, []);
 
@@ -113,13 +117,14 @@ const Game: React.FC = () => {
         }
         return newLives;
       });
+      setScore(prev => Math.max(prev - 50, 0)); // スコアを50減少させる（最小0）
       setPlayerPosition({ x: 50, y: window.innerHeight - 100 });
       setPlayerVelocity({ x: 0, y: 0 });
       setIsJumping(false);
       setIsInvulnerable(true);
       lastCollisionTime.current = currentTime;
       setTimeout(() => setIsInvulnerable(false), 1000);
-      setMessage('Ouch!');
+      setMessage('Ouch! -50 points');
       setTimeout(() => setMessage(''), 1000);
     }
   }, [isInvulnerable]);
@@ -157,6 +162,8 @@ const Game: React.FC = () => {
 
     const gameLoop = setInterval(() => {
       if (gameState !== 'playing') return;
+
+      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
 
       setPlayerPosition(prev => {
         let newX = prev.x + playerVelocity.x;
@@ -234,9 +241,15 @@ const Game: React.FC = () => {
     }, 1000 / 60); // 60 FPS
 
     return () => clearInterval(gameLoop);
-  }, [lives, playerPosition, playerVelocity, obstacles, holes, handleCollision, gameState]);
+  }, [lives, playerPosition, playerVelocity, obstacles, holes, handleCollision, gameState, startTime]);
 
   const progress = (playerPosition.x / (window.innerWidth - 50)) * 100;
+
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
 
   return (
     <GameContainer>
@@ -265,12 +278,14 @@ const Game: React.FC = () => {
       <HUD>
         <div>{Array(lives).fill(0).map((_, i) => <Heart key={i} color="red" fill="red" />)}</div>
         <div><Star /> {score}</div>
+        <div><Clock /> {formatTime(elapsedTime)}</div>
       </HUD>
       {message && <MessageOverlay>{message}</MessageOverlay>}
       {(gameOver || gameWon) && (
         <MessageOverlay>
           <div>{gameOver ? 'Game Over!' : 'You Win!'}</div>
           <div>Final Score: {score}</div>
+          <div>Time: {formatTime(elapsedTime)}</div>
           <Button onClick={resetGame}>Play Again</Button>
         </MessageOverlay>
       )}
