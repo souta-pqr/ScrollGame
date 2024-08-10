@@ -70,6 +70,7 @@ const Button = styled.button`
 const Game: React.FC = () => {
   const [playerPosition, setPlayerPosition] = useState({ x: 50, y: window.innerHeight - 100 });
   const [playerVelocity, setPlayerVelocity] = useState({ x: 0, y: 0 });
+  const [enemyPosition, setEnemyPosition] = useState({ x: window.innerWidth - 100, y: window.innerHeight - 100 });
   const [lives, setLives] = useState(3);
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
@@ -96,6 +97,7 @@ const Game: React.FC = () => {
   const resetGame = useCallback(() => {
     setPlayerPosition({ x: 50, y: window.innerHeight - 100 });
     setPlayerVelocity({ x: 0, y: 0 });
+    setEnemyPosition({ x: window.innerWidth - 100, y: window.innerHeight - 100 });
     setLives(3);
     setScore(0);
     setGameOver(false);
@@ -106,7 +108,7 @@ const Game: React.FC = () => {
     setStartTime(Date.now());
     setElapsedTime(0);
     lastCollisionTime.current = 0;
-    setGameStarted(true); // ゲームを即座に再開
+    setGameStarted(true);
   }, []);
 
   const handleCollision = useCallback(() => {
@@ -120,7 +122,7 @@ const Game: React.FC = () => {
         }
         return newLives;
       });
-      setScore(prev => Math.max(prev - 50, 0)); // スコアを50減少させる（最小0）
+      setScore(prev => Math.max(prev - 50, 0));
       setPlayerPosition({ x: 50, y: window.innerHeight - 100 });
       setPlayerVelocity({ x: 0, y: 0 });
       setIsJumping(false);
@@ -171,17 +173,14 @@ const Game: React.FC = () => {
         let newX = prev.x + playerVelocity.x;
         let newY = prev.y + playerVelocity.y;
 
-        // Apply gravity
         setPlayerVelocity(prevVel => ({ ...prevVel, y: prevVel.y + gravity }));
 
-        // Ground collision
         if (newY > window.innerHeight - 100) {
           newY = window.innerHeight - 100;
           setPlayerVelocity(prevVel => ({ ...prevVel, y: 0 }));
           setIsJumping(false);
         }
 
-        // Wall collisions
         if (newX < 0) newX = 0;
         if (newX > window.innerWidth - 50) {
           newX = window.innerWidth - 50;
@@ -189,7 +188,6 @@ const Game: React.FC = () => {
           setGameWon(true);
         }
 
-        // Check obstacle collisions
         let collision = false;
         for (let obstacle of obstacles) {
           if (
@@ -203,7 +201,6 @@ const Game: React.FC = () => {
           }
         }
 
-        // Check hole collisions
         for (let hole of holes) {
           if (
             newX < hole.x + hole.width &&
@@ -215,35 +212,41 @@ const Game: React.FC = () => {
           }
         }
 
-        // Check enemy collision
-        const enemy = document.querySelector('.enemy') as HTMLElement;
-        if (enemy) {
-          const enemyRect = enemy.getBoundingClientRect();
-          if (
-            newX < enemyRect.right &&
-            newX + 50 > enemyRect.left &&
-            newY < enemyRect.bottom &&
-            newY + 50 > enemyRect.top
-          ) {
-            collision = true;
-          }
+        if (
+          newX < enemyPosition.x + 40 &&
+          newX + 50 > enemyPosition.x &&
+          newY < enemyPosition.y + 40 &&
+          newY + 50 > enemyPosition.y
+        ) {
+          collision = true;
         }
 
         if (collision) {
           handleCollision();
-          return prev; // Don't update position if collision occurred
+          return prev;
         }
 
-        // Update score
         setScore(prev => prev + 1);
 
         return { x: newX, y: newY };
       });
 
-    }, 1000 / 60); // 60 FPS
+      setEnemyPosition(prev => ({
+        x: prev.x - 2,
+        y: prev.y
+      }));
+
+      if (enemyPosition.x < -40) {
+        setEnemyPosition({
+          x: window.innerWidth,
+          y: window.innerHeight - 100
+        });
+      }
+
+    }, 1000 / 60);
 
     return () => clearInterval(gameLoop);
-  }, [lives, playerPosition, playerVelocity, obstacles, holes, handleCollision, gameState, startTime]);
+  }, [lives, playerPosition, playerVelocity, obstacles, holes, handleCollision, gameState, startTime, enemyPosition]);
 
   const startGame = () => {
     setGameStarted(true);
@@ -285,7 +288,7 @@ const Game: React.FC = () => {
               backgroundColor: 'black'
             }} />
           ))}
-          <Enemy />
+          <Enemy position={enemyPosition} />
           <HUD>
             <div>{Array(lives).fill(0).map((_, i) => <Heart key={i} color="red" fill="red" />)}</div>
             <div><Star /> {score}</div>

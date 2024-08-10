@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 
-const EnemySprite = styled.div<{ position: { x: number; y: number } }>`
+interface EnemyProps {
+  position: { x: number; y: number };
+}
+
+const EnemySprite = styled.div<EnemyProps>`
   width: 40px;
   height: 40px;
   background-color: #ff0000;
@@ -11,20 +15,7 @@ const EnemySprite = styled.div<{ position: { x: number; y: number } }>`
   border-radius: 20px;
 `;
 
-const Enemy: React.FC = () => {
-  const [position, setPosition] = useState({ x: window.innerWidth - 100, y: window.innerHeight - 90 });
-
-  useEffect(() => {
-    const moveEnemy = setInterval(() => {
-      setPosition(prev => ({
-        x: prev.x - 2,
-        y: window.innerHeight - 90,
-      }));
-    }, 50);
-
-    return () => clearInterval(moveEnemy);
-  }, []);
-
+const Enemy: React.FC<EnemyProps> = ({ position }) => {
   return <EnemySprite className="enemy" position={position} />;
 };
 
