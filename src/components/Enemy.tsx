@@ -1,9 +1,15 @@
 import React from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 
 interface EnemyProps {
   position: { x: number; y: number };
 }
+
+const float = keyframes`
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0); }
+`;
 
 const EnemySprite = styled.div<EnemyProps>`
   width: 40px;
@@ -13,6 +19,7 @@ const EnemySprite = styled.div<EnemyProps>`
   left: ${props => props.position.x}px;
   top: ${props => props.position.y}px;
   border-radius: 20px;
+  animation: ${float} 2s ease-in-out infinite;
 `;
 
 const Enemy: React.FC<EnemyProps> = ({ position }) => {

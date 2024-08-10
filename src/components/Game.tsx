@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import styled, { keyframes } from 'styled-components';
 import Player from './Player';
 import Enemy from './Enemy';
 import Background from './Background';
 import Obstacle from './Obstacle';
+import Coin from './Coin';
 import { Heart, Star, Clock } from 'lucide-react';
 
 const GameContainer = styled.div`
@@ -67,23 +68,23 @@ const Button = styled.button`
   }
 `;
 
+const Platform = styled.div`
+  position: absolute;
+  background-color: #8B4513;
+  width: 200px;
+  height: 20px;
+`;
+
 const Game: React.FC = () => {
-  const [playerPosition, setPlayerPosition] = useState({ x: 50, y: window.innerHeight - 100 });
+  const [playerPosition, setPlayerPosition] = useState({ x: 50, y: window.innerHeight - 150 });
   const [playerVelocity, setPlayerVelocity] = useState({ x: 0, y: 0 });
   const [enemyPosition, setEnemyPosition] = useState({ x: window.innerWidth - 100, y: window.innerHeight - 100 });
   const [lives, setLives] = useState(3);
   const [score, setScore] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [gameWon, setGameWon] = useState(false);
-  const [obstacles] = useState([
-    { x: window.innerWidth * 0.3, y: window.innerHeight - 80, width: 30, height: 30 },
-    { x: window.innerWidth * 0.6, y: window.innerHeight - 80, width: 30, height: 30 },
-  ]);
-  const [holes] = useState([
-    { x: window.innerWidth * 0.45, y: window.innerHeight - 10, width: 100, height: 10 },
-    { x: window.innerWidth * 0.75, y: window.innerHeight - 10, width: 100, height: 10 },
-  ]);
   const [isJumping, setIsJumping] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
   const [isInvulnerable, setIsInvulnerable] = useState(false);
   const [message, setMessage] = useState('');
   const [gameState, setGameState] = useState<'playing' | 'over' | 'won'>('playing');
@@ -91,11 +92,41 @@ const Game: React.FC = () => {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
   const [firstStart, setFirstStart] = useState(true);
-  
+  const [coins, setCoins] = useState<{ x: number; y: number }[]>([]);
+
   const lastCollisionTime = useRef(0);
+  const gameLoopRef = useRef<number | null>(null);
+
+  const obstacles = useMemo(() => [
+    { x: window.innerWidth * 0.2, y: window.innerHeight - 80, width: 30, height: 30 },
+    { x: window.innerWidth * 0.6, y: window.innerHeight - 80, width: 30, height: 30 },
+    { x: window.innerWidth * 0.8, y: window.innerHeight - 200, width: 30, height: 30 },
+    { x: window.innerWidth * 0.3, y: window.innerHeight - 500, width: 30, height: 30 },
+    { x: window.innerWidth * 0.5, y: window.innerHeight - 400, width: 30, height: 30 },
+    { x: window.innerWidth * 0.7, y: window.innerHeight - 500, width: 30, height: 30 },
+  ], []);
+
+  const holes = useMemo(() => [
+    { x: window.innerWidth * 0.45, y: window.innerHeight - 10, width: 100, height: 10 },
+    { x: window.innerWidth * 0.75, y: window.innerHeight - 10, width: 100, height: 10 },
+    { x: window.innerWidth * 0.2, y: window.innerHeight - 10, width: 100, height: 10 },
+  ], []);
+
+  const platforms = useMemo(() => [
+    { x: 0, y: window.innerHeight - 150 },
+    { x: window.innerWidth * 0.2, y: window.innerHeight - 250 },
+    { x: window.innerWidth * 0.4, y: window.innerHeight - 350 },
+    { x: window.innerWidth * 0.6, y: window.innerHeight - 300 },
+    { x: window.innerWidth * 0.8, y: window.innerHeight - 400 },
+    { x: window.innerWidth * 0.1, y: window.innerHeight - 500 },
+    { x: window.innerWidth * 0.5, y: window.innerHeight - 550 },
+    { x: window.innerWidth * 0.9, y: window.innerHeight - 600 },
+    { x: window.innerWidth * 0.3, y: window.innerHeight - 650 },
+    { x: window.innerWidth * 0.7, y: window.innerHeight - 700 },
+  ], []);
 
   const resetGame = useCallback(() => {
-    setPlayerPosition({ x: 50, y: window.innerHeight - 100 });
+    setPlayerPosition({ x: 50, y: window.innerHeight - 150 });
     setPlayerVelocity({ x: 0, y: 0 });
     setEnemyPosition({ x: window.innerWidth - 100, y: window.innerHeight - 100 });
     setLives(3);
@@ -103,12 +134,14 @@ const Game: React.FC = () => {
     setGameOver(false);
     setGameWon(false);
     setIsJumping(false);
+    setIsMoving(false);
     setIsInvulnerable(false);
     setGameState('playing');
     setStartTime(Date.now());
     setElapsedTime(0);
     lastCollisionTime.current = 0;
     setGameStarted(true);
+    generateCoins();
   }, []);
 
   const handleCollision = useCallback(() => {
@@ -123,7 +156,7 @@ const Game: React.FC = () => {
         return newLives;
       });
       setScore(prev => Math.max(prev - 50, 0));
-      setPlayerPosition({ x: 50, y: window.innerHeight - 100 });
+      setPlayerPosition({ x: 50, y: window.innerHeight - 150 });
       setPlayerVelocity({ x: 0, y: 0 });
       setIsJumping(false);
       setIsInvulnerable(true);
@@ -134,16 +167,33 @@ const Game: React.FC = () => {
     }
   }, [isInvulnerable]);
 
+  const generateCoins = useCallback(() => {
+    const newCoins = platforms.map(platform => ({
+      x: platform.x + Math.random() * 150,
+      y: platform.y - 30,
+    }));
+    setCoins(newCoins);
+  }, [platforms]);
+
+  const collectCoin = useCallback((index: number) => {
+    setCoins(prev => prev.filter((_, i) => i !== index));
+    setScore(prev => prev + 100);
+    setMessage('+100 points!');
+    setTimeout(() => setMessage(''), 1000);
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (gameState !== 'playing') return;
       if (e.key === 'ArrowRight') {
         setPlayerVelocity(prev => ({ ...prev, x: 5 }));
+        setIsMoving(true);
       } else if (e.key === 'ArrowLeft') {
         setPlayerVelocity(prev => ({ ...prev, x: -5 }));
+        setIsMoving(true);
       } else if (e.key === ' ' && !isJumping) {
         setIsJumping(true);
-        setPlayerVelocity(prev => ({ ...prev, y: -20 }));
+        setPlayerVelocity(prev => ({ ...prev, y: -15 }));
       }
     };
 
@@ -151,6 +201,7 @@ const Game: React.FC = () => {
       if (gameState !== 'playing') return;
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         setPlayerVelocity(prev => ({ ...prev, x: 0 }));
+        setIsMoving(false);
       }
     };
 
@@ -162,106 +213,145 @@ const Game: React.FC = () => {
     };
   }, [isJumping, gameState]);
 
-  useEffect(() => {
+  const updateGameState = useCallback(() => {
     if (gameState !== 'playing') return;
 
-    const gravity = 0.8;
-    const gameLoop = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+    const gravity = 0.5;
+    setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
 
-      setPlayerPosition(prev => {
-        let newX = prev.x + playerVelocity.x;
-        let newY = prev.y + playerVelocity.y;
+    setPlayerPosition(prev => {
+      let newX = prev.x + playerVelocity.x;
+      let newY = prev.y + playerVelocity.y;
 
-        setPlayerVelocity(prevVel => ({ ...prevVel, y: prevVel.y + gravity }));
+      setPlayerVelocity(prevVel => ({ ...prevVel, y: prevVel.y + gravity }));
 
-        if (newY > window.innerHeight - 100) {
-          newY = window.innerHeight - 100;
+      if (newY > window.innerHeight - 100) {
+        newY = window.innerHeight - 100;
+        setPlayerVelocity(prevVel => ({ ...prevVel, y: 0 }));
+        setIsJumping(false);
+      }
+
+      let onPlatform = false;
+      platforms.forEach(platform => {
+        if (
+          newX < platform.x + 200 &&
+          newX + 50 > platform.x &&
+          newY + 50 >= platform.y &&
+          newY + 50 <= platform.y + 20 &&
+          playerVelocity.y >= 0
+        ) {
+          newY = platform.y - 50;
           setPlayerVelocity(prevVel => ({ ...prevVel, y: 0 }));
           setIsJumping(false);
+          onPlatform = true;
         }
+      });
 
-        if (newX < 0) newX = 0;
-        if (newX > window.innerWidth - 50) {
-          newX = window.innerWidth - 50;
-          setGameState('won');
-          setGameWon(true);
-        }
+      if (!isJumping && !onPlatform && newY < window.innerHeight - 100) {
+        setIsJumping(true);
+      }
 
-        let collision = false;
-        for (let obstacle of obstacles) {
-          if (
-            newX < obstacle.x + obstacle.width &&
-            newX + 50 > obstacle.x &&
-            newY < obstacle.y + obstacle.height &&
-            newY + 50 > obstacle.y
-          ) {
-            collision = true;
-            break;
-          }
-        }
+      if (newX < 0) newX = 0;
+      if (newX > window.innerWidth - 50) {
+        newX = window.innerWidth - 50;
+        setGameState('won');
+        setGameWon(true);
+      }
 
-        for (let hole of holes) {
-          if (
-            newX < hole.x + hole.width &&
-            newX + 50 > hole.x &&
-            newY + 50 >= hole.y
-          ) {
-            collision = true;
-            break;
-          }
-        }
-
+      let collision = false;
+      obstacles.forEach(obstacle => {
         if (
-          newX < enemyPosition.x + 40 &&
-          newX + 50 > enemyPosition.x &&
-          newY < enemyPosition.y + 40 &&
-          newY + 50 > enemyPosition.y
+          newX < obstacle.x + obstacle.width &&
+          newX + 50 > obstacle.x &&
+          newY < obstacle.y + obstacle.height &&
+          newY + 50 > obstacle.y
         ) {
           collision = true;
         }
-
-        if (collision) {
-          handleCollision();
-          return prev;
-        }
-
-        setScore(prev => prev + 1);
-
-        return { x: newX, y: newY };
       });
 
-      setEnemyPosition(prev => ({
-        x: prev.x - 2,
-        y: prev.y
-      }));
+      holes.forEach(hole => {
+        if (
+          newX < hole.x + hole.width &&
+          newX + 50 > hole.x &&
+          newY + 50 >= hole.y
+        ) {
+          collision = true;
+        }
+      });
 
-      if (enemyPosition.x < -40) {
-        setEnemyPosition({
-          x: window.innerWidth,
-          y: window.innerHeight - 100
-        });
+      if (
+        newX < enemyPosition.x + 40 &&
+        newX + 50 > enemyPosition.x &&
+        newY < enemyPosition.y + 40 &&
+        newY + 50 > enemyPosition.y
+      ) {
+        collision = true;
       }
 
-    }, 1000 / 60);
+      if (collision) {
+        handleCollision();
+        return prev;
+      }
 
-    return () => clearInterval(gameLoop);
-  }, [lives, playerPosition, playerVelocity, obstacles, holes, handleCollision, gameState, startTime, enemyPosition]);
+      coins.forEach((coin, index) => {
+        if (
+          newX < coin.x + 20 &&
+          newX + 50 > coin.x &&
+          newY < coin.y + 20 &&
+          newY + 50 > coin.y
+        ) {
+          collectCoin(index);
+        }
+      });
 
-  const startGame = () => {
+      return { x: newX, y: newY };
+    });
+
+    setEnemyPosition(prev => ({
+      x: prev.x - 2,
+      y: prev.y + Math.sin(Date.now() / 500) * 2
+    }));
+
+    if (enemyPosition.x < -40) {
+      setEnemyPosition({
+        x: window.innerWidth,
+        y: Math.random() * (window.innerHeight - 200) + 100
+      });
+    }
+
+    gameLoopRef.current = requestAnimationFrame(updateGameState);
+  }, [gameState, playerVelocity, obstacles, holes, enemyPosition, coins, handleCollision, collectCoin, platforms, startTime, isJumping]);
+
+  useEffect(() => {
+    if (gameState === 'playing') {
+      gameLoopRef.current = requestAnimationFrame(updateGameState);
+    } else if (gameLoopRef.current) {
+      cancelAnimationFrame(gameLoopRef.current);
+    }
+
+    return () => {
+      if (gameLoopRef.current) {
+        cancelAnimationFrame(gameLoopRef.current);
+      }
+    };
+  }, [gameState, updateGameState]);
+
+  const startGame = useCallback(() => {
     setGameStarted(true);
     setFirstStart(false);
     setStartTime(Date.now());
     setGameState('playing');
-  };
+    generateCoins();
+  }, [generateCoins]);
 
-  const progress = (playerPosition.x / (window.innerWidth - 50)) * 100;
+  const progress = useMemo(() => (playerPosition.x / (window.innerWidth - 50)) * 100, [playerPosition.x]);
 
-  const formatTime = (seconds: number) => {
+  const formatTime = useCallback((seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
+  }, []);
 
   return (
     <GameContainer>
@@ -269,7 +359,12 @@ const Game: React.FC = () => {
       {gameStarted && (
         <>
           <ProgressBar style={{ width: `${progress}%` }} />
-          <Player position={playerPosition} isInvulnerable={isInvulnerable} />
+          <Player 
+            position={playerPosition} 
+            isInvulnerable={isInvulnerable}
+            isJumping={isJumping}
+            isMoving={isMoving}
+          />
           {obstacles.map((obstacle, index) => (
             <Obstacle 
               key={index} 
@@ -288,7 +383,13 @@ const Game: React.FC = () => {
               backgroundColor: 'black'
             }} />
           ))}
+          {platforms.map((platform, index) => (
+            <Platform key={index} style={{ left: platform.x, top: platform.y }} />
+          ))}
           <Enemy position={enemyPosition} />
+          {coins.map((coin, index) => (
+            <Coin key={index} position={coin} />
+          ))}
           <HUD>
             <div>{Array(lives).fill(0).map((_, i) => <Heart key={i} color="red" fill="red" />)}</div>
             <div><Star /> {score}</div>
@@ -299,15 +400,16 @@ const Game: React.FC = () => {
       {message && <MessageOverlay>{message}</MessageOverlay>}
       {!gameStarted && firstStart && (
         <MessageOverlay>
-          <div>Welcome to the Game!</div>
-          <div>Jump over the red obstacles to avoid losing points.</div>
+          <div>Welcome to the Enhanced Platform Adventure!</div>
+          <div>Navigate through wider platforms and avoid more obstacles.</div>
           <div>Use arrow keys to move and space to jump.</div>
+          <div>Collect coins and reach the top for the ultimate challenge!</div>
           <Button onClick={startGame}>Start Game</Button>
         </MessageOverlay>
       )}
       {(gameOver || gameWon) && (
         <MessageOverlay>
-          <div>{gameOver ? 'Game Over!' : 'You Win!'}</div>
+          <div>{gameOver ? 'Game Over!' : 'Congratulations! You Win!'}</div>
           <div>Final Score: {score}</div>
           <div>Time: {formatTime(elapsedTime)}</div>
           <Button onClick={resetGame}>Play Again</Button>
